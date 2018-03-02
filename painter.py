@@ -115,6 +115,7 @@ class Painter:
 
         self.s_in_stroke = False
         self.s_in_box = False
+        self.s_is_wiping = False
 
         self.brush_pos = None
         self.brush_goal = None
@@ -134,6 +135,8 @@ class Painter:
                                                l=0, r=self.width, b=0, t=self.height)
 
         self.pixels_filled_in_area = 0
+
+        self.wipe_h = 0
         # IPython.embed()
 
 
@@ -197,7 +200,11 @@ class Painter:
             self.count_at_current = 0
 
     def sample_color(self):
-        self.brush_color = self.photo[self.sample_from_box()]
+        n = 30
+        c = (0.0, 0.0, 0.0)
+        for _ in range(n):
+            c = (v + nv/n for v, nv in zip(c, self.photo[self.sample_from_box()]))
+        self.brush_color = tuple(int(v) for v in c)
 
     def sample_box_near_current(self):
         # self.box = sample_box_with_target_area(self.target_area,
@@ -276,8 +283,38 @@ class Painter:
         # delta = (self.brush_goal - self.brush_pos) / dist
         self.brush_pos += delta
         self.add_brush_blob_at(self.brush_pos, self.active_brush, self.brush_color)
+
+    def wipe(self):
+        for ind in range(self.width):
+            a = .9
+            p = (ind, self.wipe_h)
+            cur_color = self.canvas[p]
+            photo_color = self.photo[p]
+            self.canvas[p] = tuple([int(a*c + (1-a)*n) for c,n in zip(cur_color, photo_color)])
+            self.pixels_filled_in_iter += 1
+
+        self.wipe_h += 1
+        if self.wipe_h >= self.height:
+            self.wipe_h = 0
+            
+    def scatter_fill(self):
+        x = random.random()*self.width
+        y = random.random()*self.height
+        p = self.to_pxl((x,y))
+        a = .9
+        cur_color = self.canvas[p]
+        photo_color = self.photo[p]
+        self.canvas[p] = tuple([int(a*c + (1-a)*n) for c,n in zip(cur_color, photo_color)])
+        self.pixels_filled_in_iter += 1
+        
         
     def continue_state_machine(self):
+        if self.target_area < 10:
+            self.s_is_wiping = True
+            # self.wipe()
+            self.scatter_fill()
+            # return
+        
         if self.s_in_stroke:
             self.continue_stroke()
             return
