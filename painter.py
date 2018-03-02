@@ -10,7 +10,7 @@ import time
 from numpy.random import choice
 
 
-brush1 = np.array([[0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
+brush1 = .5*np.array([[0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
                    [0.0, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.0],
                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.2, 0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                    [0.0, 0.0, 0.1, 0.0, 0.3, 0.0, 0.0, 0.0, 0.2, 0.0, 0.4, 0.0, 0.2, 0.0, 0.0],
@@ -44,13 +44,13 @@ brush2 = np.array([[0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
                    [0.2, 0.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                    [0.0, 0.0, 0.4, 0.0, 0.3, 0.0, 0.0, 0.0]])
 
-brush3 = np.array([[0.1, 0.0, 0.0, 0.0, 0.0],
-                   [0.2, 0.3, 0.0, 0.0, 0.0],
-                   [0.1, 0.2, 0.7, 0.0, 0.0],
-                   [0.0, 0.0, 0.2, 0.3, 0.0],
+brush3 = np.array([[0.1, 0.3, 0.1, 0.0, 0.0],
+                   [0.2, 0.3, 0.2, 0.2, 0.0],
+                   [0.1, 0.2, 0.7, 0.2, 0.1],
+                   [0.0, 0.2, 0.2, 0.3, 0.2],
                    [0.1, 0.0, 0.0, 0.0, 0.6]])
 
-brush4 = np.array([[4.0]])
+brush4 = np.array([[0.3]])
 
 
 
@@ -74,14 +74,15 @@ class AABB:
 
 def sample_box_with_target_area(area, l, r, t, b):
     sl = np.sqrt(area)
-    aspect_ratio = 0.5 + random.random()
+    # aspect_ratio = 0.5 + random.random()
+    aspect_ratio=1.0
     x = random.random() * (r - sl - l) + l
     y = random.random() * (t - sl - b) + b
 
     w = sl * aspect_ratio
     h = sl / aspect_ratio
 
-    return AABB(l=l+x, r=l+x+w, b=b+y, t=b+y+h)
+    return AABB(l=x, r=x+w, b=y, t=y+h)
     
 
 
@@ -121,7 +122,7 @@ class Painter:
         self.brush_color = None
 
         self.pixels_of_cur_box_filled_in = 0
-        self.target_area = self.width*self.height/4
+        self.target_area = self.width*self.height/1.1
         # self.target_area = 100
 
         self.count_at_current = 0
@@ -129,6 +130,10 @@ class Painter:
         self.pixels_filled_in_iter = 0
 
         self.active_brush = brush1
+        self.box = sample_box_with_target_area(self.target_area,
+                                               l=0, r=self.width, b=0, t=self.height)
+
+        self.pixels_filled_in_area = 0
         # IPython.embed()
 
 
@@ -169,20 +174,9 @@ class Painter:
                 self.canvas[p] = tuple([int(a*c + (1-a)*n) for c,n in zip(cur_color, color)])
                 self.pixels_of_cur_box_filled_in += 1
                 self.pixels_filled_in_iter += 1
+                self.pixels_filled_in_area += 1
                 
         
-    def add_stroke(self, endpoints):
-        cur, end = endpoints
-        delta = (end - cur) / np.linalg.norm(end - cur)
-
-        while rrt.dist(cur, end) > 1:
-            cur = cur + delta
-            print cur
-            self.add_brush_blob_at(cur, brush1, (0, 255, 0))
-            # self.disp_img.paste(self.canvas_img)
-            time.sleep(.1)
-            self.disp_img.paste(self.canvas_img)
-
     
 
     def sample_from_box(self):
@@ -197,18 +191,44 @@ class Painter:
         if self.count_at_current > self.width * self.height/2:
 
             self.sample_brush()
-            self.target_area *= .7
+            self.target_area *= .8
             self.target_area = max(self.target_area, 1)
             print "Shrinking to " + str(self.target_area)
             self.count_at_current = 0
 
     def sample_color(self):
-        self.brush_color = self.photo[self.sample_from_box()]        
+        self.brush_color = self.photo[self.sample_from_box()]
+
+    def sample_box_near_current(self):
+        # self.box = sample_box_with_target_area(self.target_area,
+        #                                        l=0, r=self.width, b=0, t=self.height)
+        sl = np.sqrt(self.target_area)
+        l = max(0, self.box.l-sl)
+        r = min(self.width-1, self.box.r+sl)
+        b = max(0, self.box.b-sl)
+        t = min(self.height-1, self.box.t+sl)
+        # IPython.embed()
+        # print ("-------")
+        # print ("l:{}, r:{}, b:{}, t{}".format(self.box.l, self.box.r, self.box.b, self.box.t))
+        self.box = sample_box_with_target_area(self.target_area,
+                                               l=l, r=r, b=b, t=t)
+        # print ("l:{}, r:{}, b:{}, t{}".format(self.box.l, self.box.r, self.box.b, self.box.t))
+        
 
     def sample_box(self):
         # self.box = AABB(l=0, r=self.width, b=0, t=self.height)
-        self.box = sample_box_with_target_area(self.target_area,
+
+        if self.pixels_filled_in_area < self.width*self.height:
+            self.sample_box_near_current()
+        else:
+            self.box = sample_box_with_target_area(self.target_area,
                                                l=0, r=self.width, b=0, t=self.height)
+            self.pixels_filled_in_area = 0
+            print ("Sampling from new location")
+
+
+
+        
         self.shrink_target_area()
         self.sample_color()
 
@@ -237,8 +257,9 @@ class Painter:
             return
         
         self.s_in_stroke = True
-        self.brush_goal = self.rrt.sample()
-        self.brush_pos = self.rrt.sample()
+        self.brush_pos = self.sample_from_box()
+        # self.brush_goal = self.rrt.sample()
+        # self.brush_pos = self.rrt.sample()
         
 
     def continue_stroke(self):
@@ -272,8 +293,9 @@ class Painter:
     def update(self):
         # self.add_stroke((self.rrt.sample(), self.rrt.sample()))
         # for _ in range(100):
-        while self.pixels_filled_in_iter < 10000 and\
-              self.pixels_filled_in_iter < self.target_area/1:
+        # while self.pixels_filled_in_iter < 10000 and\
+        #       self.pixels_filled_in_iter < self.target_area/1:
+        while self.pixels_filled_in_iter < 10000:
             self.continue_state_machine()
         self.pixels_filled_in_iter = 0
         self.disp_img.paste(self.canvas_img)
