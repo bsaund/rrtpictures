@@ -57,19 +57,6 @@ class RRTPicture:
 
 
 
-
-    # def plot_leds(canvas, led_colors):
-    #     """Plots the 2d led_colors array as circles in a grid on a canvas"""
-    #     canvas.delete("all")
-    #     y_off = 100
-        
-    #     for row in led_colors:
-    #         x_off = 100
-    #         for color in row:
-    #             canvas.create_circle(x_off, y_off, 10, fill=color)
-    #             x_off += 50
-    #         y_off += 50
-
     def clipx(self, x):
         return min(max(int(x), 0), self.width-1)
     
@@ -94,19 +81,27 @@ class RRTPicture:
         self.new_img.putpixel(coords, updated)
         self.weights[coords[0]][coords[1]] = min(1, 1 + w)
 
-    def add_dot(self, coordinates, radius):
-        color = self.img.getpixel(coordinates)
-        colorstr = color_to_hex(color)
-        # print colorstr
-        # self.canvas.create_circle(coordinates[0], coordinates[1], 2, fill=colorstr)
+    def add_dot(self, coordinates, radius, pxl):
         x_c, y_c = coordinates
-        px = self.img.getpixel((self.clipx(x_c), self.clipy(y_c)))
+
         for x in range(self.clipx(x_c-radius), self.clipx(x_c+radius)):
             for y in range(self.clipy(y_c-radius), self.clipy(y_c+radius)):
-                self.update_pixel((x,y), px)
+                if rrt.dist((x_c, y_c), (x,y)) < radius:
+                    self.new_img.putpixel((x,y), pxl)
 
 
-    
+    def add_stroke(self, endpoints, stroke_width):
+        cur, end = endpoints
+        delta = (end - cur) / np.linalg.norm(end - cur)
+        x,y = self.to_pxl(cur)
+        pxl = self.img.getpixel((x,y))
+
+        while rrt.dist(cur, end) > 1:
+            # update pixel
+            self.add_dot(cur, stroke_width, pxl)
+            # self.new_img.putpixel((x,y), pxl)
+            cur = cur + delta
+        
 
     def add_line(self, endpoints):
         cur, end = endpoints
@@ -133,7 +128,8 @@ class RRTPicture:
 
             existing_pxl = self.new_img.getpixel((x,y))
             already_occ = (existing_pxl[0] != 0 or existing_pxl[1] != 0)
-            self.new_img.putpixel((x,y), pxl)
+            # self.new_img.putpixel((x,y), pxl)
+            
             num_updated += 1
             
             cur = cur + delta
@@ -148,13 +144,13 @@ class RRTPicture:
         Recalls itself every 100 millis
         """
 
-        num_updated = 0
-        while num_updated < 1000:
-            num_updated += self.add_line_until_occupied((self.rrt.sample(), self.rrt.sample()))
+        # num_updated = 0
+        # while num_updated < 1000:
+        #     num_updated += self.add_line_until_occupied((self.rrt.sample(), self.rrt.sample()))
             # self.add_line(self.rrt.step())
         #     self.add_dot((random.random()*self.width, random.random()*self.height), 2)
 
-
+        self.add_stroke((self.rrt.sample(), self.rrt.sample()), 3)
         self.disp_img.paste(self.new_img)
         self.root.after(1, self.update)
 

@@ -6,6 +6,7 @@ import random
 import IPython
 import rrt
 import numpy as np
+from numpy.random import choice
 
 def _create_circle(self, x, y, r, **kwargs):
     return self.create_oval(x-r, y-r, x+r, y+r, outline='', **kwargs)
@@ -38,7 +39,7 @@ class RRTPicture:
         self.width = width
         self.height = height
 
-        self.weights = [[1]*self.height for _ in range(self.width)]
+
 
 
         dims = np.array([width, height])
@@ -46,29 +47,21 @@ class RRTPicture:
 
 
         
-
-        # self.canvas = tk.Canvas(self.root, width=width, height=height, borderwidth=0, highlightthickness=0, bg="white")
-        # self.canvas.grid()
                 
         self.panel = tk.Label(self.root, image=self.disp_img)
         self.panel.pack(side="bottom", fill="both", expand="yes")
-        
+
+        self.wanderer_pos = np.array([int(c) for c in self.rrt.sample()])
+
+        self.paint_radius = 40
+        self.wanderer_step = 12
+        self.steps_per_tick = 10
+
+
+        self.prev_fill_radius = [[self.paint_radius]*self.height for _ in range(self.width)]        
         # IPython.embed()
 
 
-
-
-    # def plot_leds(canvas, led_colors):
-    #     """Plots the 2d led_colors array as circles in a grid on a canvas"""
-    #     canvas.delete("all")
-    #     y_off = 100
-        
-    #     for row in led_colors:
-    #         x_off = 100
-    #         for color in row:
-    #             canvas.create_circle(x_off, y_off, 10, fill=color)
-    #             x_off += 50
-    #         y_off += 50
 
     def clipx(self, x):
         return min(max(int(x), 0), self.width-1)
@@ -81,32 +74,29 @@ class RRTPicture:
         y = self.clipy(point[1])
         return (x,y)
 
-    def update_pixel(self, coords, new_color):
-        cur = self.new_img.getpixel(coords)
-        w = self.weights[coords[0]][coords[1]]
 
-        updated = (float(c*w + n)/(w+1) for c,n in zip(cur, new_color))
-
-        updated = tuple([int(u)+1 if u-int(u) > random.random() else int(u) for u in updated])
-
-        # print(updated)
-
-        self.new_img.putpixel(coords, updated)
-        self.weights[coords[0]][coords[1]] = min(1, 1 + w)
-
-    def add_dot(self, coordinates, radius):
-        color = self.img.getpixel(coordinates)
-        colorstr = color_to_hex(color)
-        # print colorstr
-        # self.canvas.create_circle(coordinates[0], coordinates[1], 2, fill=colorstr)
+    def add_dot(self, coordinates, radius, pxl):
         x_c, y_c = coordinates
-        px = self.img.getpixel((self.clipx(x_c), self.clipy(y_c)))
+
         for x in range(self.clipx(x_c-radius), self.clipx(x_c+radius)):
             for y in range(self.clipy(y_c-radius), self.clipy(y_c+radius)):
-                self.update_pixel((x,y), px)
+                if rrt.dist((x_c, y_c), (x,y)) < radius:
+                    self.prev_fill_radius[x][y] = radius
+                    self.new_img.putpixel((x,y), pxl)
 
 
-    
+    def add_stroke(self, endpoints, stroke_width):
+        cur, end = endpoints
+        delta = (end - cur) / np.linalg.norm(end - cur)
+        x,y = self.to_pxl(cur)
+        pxl = self.img.getpixel((x,y))
+
+        while rrt.dist(cur, end) > 1:
+            # update pixel
+            self.add_dot(cur, stroke_width, pxl)
+            # self.new_img.putpixel((x,y), pxl)
+            cur = cur + delta
+        
 
     def add_line(self, endpoints):
         cur, end = endpoints
@@ -133,7 +123,8 @@ class RRTPicture:
 
             existing_pxl = self.new_img.getpixel((x,y))
             already_occ = (existing_pxl[0] != 0 or existing_pxl[1] != 0)
-            self.new_img.putpixel((x,y), pxl)
+            # self.new_img.putpixel((x,y), pxl)
+            
             num_updated += 1
             
             cur = cur + delta
@@ -141,6 +132,55 @@ class RRTPicture:
                 return num_updated
         return num_updated
 
+    def in_grid(self, p):
+        x, y = p
+        if x < 0 or x >= self.width:
+            return False
+        if y < 0 or y >= self.height:
+            return False
+        return True
+
+    def get_neighbors(self, coord, step_size):
+        coord = np.array([int(c) for c in coord])
+
+        neighbors = [coord + np.array([step_size,0]),
+                     coord + np.array([-step_size,0]),
+                     coord + np.array([0,step_size]),
+                     coord + np.array([0,-step_size])]
+
+
+        return [n for n in neighbors if self.in_grid(n)]
+                
+    def get_color_weights(self, p0, ps):
+        pxl0 = np.array(self.img.getpixel(tuple(p0)))
+        rgb_dists = []
+        for pn in ps:
+            pxl = np.array(self.img.getpixel(tuple(pn)))
+            rgb_dists.append(np.linalg.norm(pxl0 - pxl))
+
+        rgb_weights = [1/(d + 10) for d in rgb_dists]
+        tot = sum(rgb_weights)
+        return [w/tot for w in rgb_weights]
+
+    def update_wanderer(self):
+        cur = self.wanderer_pos
+        x,y = cur
+        step = np.ceil(self.prev_fill_radius[x][y]/3)
+        
+        n = self.get_neighbors(cur, 8)
+        w = self.get_color_weights(cur, n)
+        # IPython.embed()
+        new_ind = choice(range(len(n)), p=w)
+        new = n[new_ind]
+
+        self.wanderer_pos = new
+
+        pxl = self.img.getpixel(tuple(new))
+
+        x,y = new
+        radius = np.ceil(self.prev_fill_radius[x][y]/2)
+        self.add_dot(new, radius, pxl)
+        
 
 
     def update(self):
@@ -148,13 +188,15 @@ class RRTPicture:
         Recalls itself every 100 millis
         """
 
-        num_updated = 0
-        while num_updated < 1000:
-            num_updated += self.add_line_until_occupied((self.rrt.sample(), self.rrt.sample()))
+        # num_updated = 0
+        # while num_updated < 1000:
+        #     num_updated += self.add_line_until_occupied((self.rrt.sample(), self.rrt.sample()))
             # self.add_line(self.rrt.step())
         #     self.add_dot((random.random()*self.width, random.random()*self.height), 2)
 
-
+        # self.add_stroke((self.rrt.sample(), self.rrt.sample()), 3)
+        for _ in range(10):
+            self.update_wanderer()
         self.disp_img.paste(self.new_img)
         self.root.after(1, self.update)
 
