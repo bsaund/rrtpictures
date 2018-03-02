@@ -53,12 +53,13 @@ class RRTPicture:
 
         self.wanderer_pos = np.array([int(c) for c in self.rrt.sample()])
 
-        self.paint_radius = 40
+        self.initial_brush_radius = 40
         self.wanderer_step = 12
         self.steps_per_tick = 10
+        self.brush_radius = self.initial_brush_radius
 
 
-        self.prev_fill_radius = [[self.paint_radius]*self.height for _ in range(self.width)]        
+        self.prev_fill_radius = [[self.initial_brush_radius]*self.height for _ in range(self.width)]        
         # IPython.embed()
 
 
@@ -74,15 +75,40 @@ class RRTPicture:
         y = self.clipy(point[1])
         return (x,y)
 
+    def is_unfilled(self, x,y):
+        return self.prev_fill_radius[x][y] == self.initial_brush_radius
+
 
     def add_dot(self, coordinates, radius, pxl):
         x_c, y_c = coordinates
+        pxl = np.array(pxl)
 
-        for x in range(self.clipx(x_c-radius), self.clipx(x_c+radius)):
+        for x in range(self.clipx(x_c-radius-1), self.clipx(x_c+radius+1)):
             for y in range(self.clipy(y_c-radius), self.clipy(y_c+radius)):
-                if rrt.dist((x_c, y_c), (x,y)) < radius:
+                d = rrt.dist((x_c, y_c), (x,y))
+                if d >= radius:
+                    continue
+
+
+                cur_pxl = np.array(self.new_img.getpixel((x,y)))
+                true_pxl = np.array(self.img.getpixel((x,y)))
+
+                
+                a = min(4*float(radius-d)/radius , 1.0)
+
+                # if self.is_unfilled(x,y):
+                #     a = .5
+                
+                new_pxl = a*pxl + (1-a) * cur_pxl
+
+                # b = .95
+                # new_pxl = b*new_pxl + (1-b)*true_pxl
+                
+                new_pxl = [int(v) for v in new_pxl]
+                self.new_img.putpixel((x,y), tuple(new_pxl))
+
+                if d < float(radius)/4:
                     self.prev_fill_radius[x][y] = radius
-                    self.new_img.putpixel((x,y), pxl)
 
 
     def add_stroke(self, endpoints, stroke_width):
@@ -156,7 +182,9 @@ class RRTPicture:
         rgb_dists = []
         for pn in ps:
             pxl = np.array(self.img.getpixel(tuple(pn)))
-            rgb_dists.append(np.linalg.norm(pxl0 - pxl))
+            color_dist = np.linalg.norm(pxl0 - pxl)
+            fill_dist = self.prev_fill_radius[pn[0]][pn[1]]
+            rgb_dists.append(color_dist + 1000 * 1.0/fill_dist)
 
         rgb_weights = [1/(d + 10) for d in rgb_dists]
         tot = sum(rgb_weights)
@@ -165,9 +193,10 @@ class RRTPicture:
     def update_wanderer(self):
         cur = self.wanderer_pos
         x,y = cur
-        step = np.ceil(self.prev_fill_radius[x][y]/3)
+        step = int(np.ceil(self.prev_fill_radius[x][y]/2))
+        # step = 1 + int(4*random.random())
         
-        n = self.get_neighbors(cur, 8)
+        n = self.get_neighbors(cur, step)
         w = self.get_color_weights(cur, n)
         # IPython.embed()
         new_ind = choice(range(len(n)), p=w)
@@ -178,8 +207,15 @@ class RRTPicture:
         pxl = self.img.getpixel(tuple(new))
 
         x,y = new
-        radius = np.ceil(self.prev_fill_radius[x][y]/2)
-        self.add_dot(new, radius, pxl)
+
+        new_brush_rad = float(self.prev_fill_radius[x][y])/2
+        a = .9
+        self.brush_radius = int(self.brush_radius*a + new_brush_rad*(1-a))
+
+        self.add_dot(new, new_brush_rad, pxl)
+        # self.add_dot(new, 20, pxl)
+
+
         
 
 
