@@ -4,6 +4,9 @@ import cv2
 import numpy as np
 import time
 import IPython
+import tsp
+import cProfile
+import re
 
 
 def maskedWeighted(bg, alpha, fg, beta, mask):
@@ -72,7 +75,7 @@ def radial_brush(radius, bristles, weight=0.5):
     return 1.0 - brush
 
 def place_brush(brush, canvas, pos):
-    mask = np.zeros(canvas.shape[0:2], np.double)
+    mask = np.zeros(canvas.shape, np.double)
     x_0 = pos[0] - brush.shape[0]/2
     x_1 = pos[0] + brush.shape[0]/2 + 1
     y_0 = pos[1] - brush.shape[1]/2
@@ -82,8 +85,9 @@ def place_brush(brush, canvas, pos):
         return None
     if y_0 < 0 or y_1 >= canvas.shape[1]:
         return None
-    
-    mask[x_0:x_1, y_0:y_1] = brush
+
+    for i in range(canvas.shape[2]):
+        mask[x_0:x_1, y_0:y_1, i] = brush
     return mask
 
 
@@ -175,6 +179,26 @@ class Painter:
             self.active_region, self.active_color = self.filter(lower, upper)
         return True
 
+
+    def sort_points(self):
+        d = self.region_dab_points
+        mid = self.canvas.shape
+        d.sort()
+        # d.sort(key = lambda p: (p[0] - mid[0]/2)**2 + (p[1] - mid[1]/2)**2)
+        # IPython.embed()
+        size = 50
+        chunks = [d[x:x+size] for x in range(0, len(d), size)]
+
+        sorted_points = []
+        
+
+        for chunk in chunks:
+            path = tsp.tsp(np.array(chunk))
+            # path = path[1:]
+            sorted_points += [chunk[p] for p in path]
+            # IPython.embed()
+        self.region_dab_points = sorted_points
+
     def get_region_of_interest(self):
         if self.region_countdown <= 0:
             if not self.get_new_region_of_interest():
@@ -182,6 +206,10 @@ class Painter:
                 return None, None
             self.region_countdown = int(np.sum(self.active_region)/200)
             self.region_dab_points = select_start_points(self.active_region, self.region_countdown)
+            self.sort_points()
+            # IPython.embed()
+            # self.order = tsp.tsp(self.region_dab_points)
+            
             
         return self.active_region, self.active_color
         
@@ -192,9 +220,12 @@ class Painter:
             return
 
         # self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
-        self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000),
-                               self.region_dab_points[self.region_countdown-1])
-        self.region_countdown -= 1
+        for _ in range(10):
+            self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000),
+                                   self.region_dab_points[self.region_countdown-1])
+            self.region_countdown -= 1
+            if self.region_countdown <=0:
+                break
         # time.sleep(0.1)
         
     
@@ -248,9 +279,19 @@ class WIP:
     def run(self):
         while True:
             self.display()
+
+def test_points():
+    points = [[100*np.sin(i), 100*np.cos(i)] for i in np.arange(0, np.pi*2, 0.1)]
+    np.random.shuffle(points)
+    return np.array(points)
+
+def main():
+    fp = "Brad_with_victor.jpg"
+    pic = Painter(fp)
+    # pic = WIP("Brad_with_victor.jpg")
+    pic.run()
     
         
 if __name__=="__main__":
-    pic = Painter("Brad_with_victor.jpg")
-    # pic = WIP("Brad_with_victor.jpg")
-    pic.run()
+    main()
+    # cProfile.run('re.compile("main")')

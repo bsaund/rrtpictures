@@ -17,7 +17,7 @@ def extract_solution(manager, routing, assignment):
     return path
 
 
-def tsp(points):
+def tsp(points, time_limit_s=60):
     """
     returns the travelling salesman shortest path
     points: list of points np.array([[2,1], [3,5], ...])
@@ -36,10 +36,17 @@ def tsp(points):
     
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        # routing_enums_pb2.FirstSolutionStrategy.LOCAL_CHEAPEST_ARC
+    )
+    # search_parameters.local_search_metaheuristic = (
+    #     routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+    search_parameters.time_limit.seconds = time_limit_s
 
     # Solve the problem.
-    print("Solving")
+    # routing.ReadAssignmentFromRoutes([range(points.shape[0])], True)
+    
+    print("Solving TSP")
     assignment = routing.SolveWithParameters(search_parameters)
     print("Solved")
 
@@ -50,14 +57,15 @@ def tsp(points):
 
 
 def test_points():
-    points = [[100*np.sin(i), 100*np.cos(i)] for i in np.arange(0, np.pi*2, 0.1)]
+    points = [[100*np.sin(i), 100*np.cos(i)] for i in np.arange(0, np.pi*2, 0.01)]
     np.random.shuffle(points)
     return np.array(points)
 
 if __name__ == "__main__":
     points = test_points()
     # IPython.embed()
-    path = tsp(points)
+    print(points.shape)
+    path = tsp(points, 10)
     print(path)
     # IPython.embed()
     x = []
