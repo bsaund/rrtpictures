@@ -35,6 +35,10 @@ def overlay(base, overlay, mask):
     img_fg = cv2.bitwise_and(overlay, overlay, mask=mask)
     return cv2.add(img_bk, img_fg)
 
+def select_start_point(mask):
+    r = np.random.random(mask.shape)
+    return np.unravel_index(np.argmax(r * mask), r.shape)
+
 
 def get_hsv_list():
     d_hue = 32
@@ -80,6 +84,25 @@ def place_brush(brush, canvas, pos):
     return mask
 
 
+def dab_fill(canvas, color, brush, pos):
+    """
+    canvas is the standard canvas
+    color is a canvas-sized array of the paint color
+    brush is the brush used
+    mask is an array of 0s or 1s
+    """
+    # num_dabs = np.sum(mask)/200
+    num_dabs = 1
+    
+    # IPython.embed()
+    # for _ in range(int(num_dabs)):
+    #     pos = select_start_point(mask)
+    dab_mask = place_brush(brush, canvas, pos)
+    if dab_mask is None:
+        return canvas
+    canvas = merge(canvas, color, dab_mask)
+    return canvas
+
 class Painter:
     def __init__(self, photo_filepath):
         self.photo= cv2.imread(photo_filepath)
@@ -88,6 +111,11 @@ class Painter:
         self.blurred_photo = cv2.GaussianBlur(self.photo, (55,55), 0)
         self.photo_hsv = cv2.cvtColor(self.blurred_photo, cv2.COLOR_BGR2HSV)
         self.create_blank_canvas()
+        self.painting_done = False
+        self.region_countdown = 0
+        self.active_region = None
+        self.active_color = None
+        self.hsv_bands = get_hsv_list()
 
     def create_blank_canvas(self):
         self.canvas = np.zeros(self.photo.shape, np.uint8)
@@ -111,7 +139,7 @@ class Painter:
 
         print "sum: ", np.sum(mask)/255
         if np.sum(mask)/255 < 200:
-            return
+            return None, None
         
         # self.canvas = cv2.bitwise_and(self.photo, self.photo, mask=mask)
         # self.canvas[mask] = [0,0,255]
@@ -127,20 +155,54 @@ class Painter:
         # self.canvas = overlay(self.canvas, fill_color, mask)
 
         mask = mask.astype(np.double)/255
-        mask = cv2.GaussianBlur(mask, (7, 7), 0)
+        return mask, fill_color
+        # mask = cv2.GaussianBlur(mask, (7, 7), 0)
         
         # self.canvas = maskedWeighted(self.canvas, 0.2, fill_color, 0.8, mask)
-        self.canvas = merge(self.canvas, fill_color, mask)
-        time.sleep(0.1)
+        # self.canvas = merge(self.canvas, fill_color, mask)
+
+    def get_new_region_of_interest(self):
+        self.active_region = None
+        while self.active_region is None:
+            try:
+                lower, upper = self.hsv_bands.next()
+            except:
+                return False
+            self.active_region, self.active_color = self.filter(lower, upper)
+        return True
+
+    def get_region_of_interest(self):
+        if self.region_countdown <= 0:
+            if not self.get_new_region_of_interest():
+                self.painting_done = True
+                return None, None
+            self.region_countdown = np.sum(self.active_region)/200
+            
+        return self.active_region, self.active_color
+        
+
+    def paint(self):
+        region, color = self.get_region_of_interest()
+        if self.painting_done:
+            return
+
+        self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
+        self.region_countdown -= 1
+        # time.sleep(0.1)
+        
     
 
     def run(self):
         # while(True):
-        for lower, upper in get_hsv_list():
-            self.filter(lower, upper)
+        # for lower, upper in get_hsv_list():
+        #     self.paint(lower, upper)
+        #     self.display()
+        while not self.painting_done:
+            self.paint()
             self.display()
 
 
+        print "Painting finished"
         while(True):
             self.display()
 
