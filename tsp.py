@@ -16,22 +16,20 @@ def extract_solution(manager, routing, assignment):
         index = assignment.Value(routing.NextVar(index))
     return path
 
+
 def tsp(points):
     """
     returns the travelling salesman shortest path
     points: list of points np.array([[2,1], [3,5], ...])
     """
-
-    
     manager = pywrapcp.RoutingIndexManager(
         len(points), 1, 0)
     routing = pywrapcp.RoutingModel(manager)
 
     def distance_callback(from_index, to_index):
-        # print points[from_index]
-        # return int(np.linalg.norm(points[from_index] - points[to_index]))
-        return 1.0
-        
+        from_node = manager.IndexToNode(from_index)
+        to_node = manager.IndexToNode(to_index)
+        return int(np.linalg.norm(points[from_node] - points[to_node]))
 
     transit_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
@@ -45,10 +43,10 @@ def tsp(points):
     assignment = routing.SolveWithParameters(search_parameters)
     print("Solved")
 
-    # if not assignment:
-    #     print("Not assignment")
+    if not assignment:
+        print("Not assignment")
         
-    # return extract_solution(manager, routing, assignment)
+    return extract_solution(manager, routing, assignment)
 
 
 def test_points():
@@ -58,18 +56,18 @@ def test_points():
 
 if __name__ == "__main__":
     points = test_points()
-    IPython.embed()
-    path = tsp(points.tolist())
-    # print path
+    # IPython.embed()
+    path = tsp(points)
+    print(path)
     # IPython.embed()
     x = []
     y = []
     # IPython.embed()
-    # for p in path:
-    #     print points[p]
-    #     x.append(points[p,0])
-    #     y.append(points[p,1])
+    for p in path:
+        print(points[p])
+        x.append(points[p,0])
+        y.append(points[p,1])
 
 
-    # plt.plot(x, y)
-    # plt.show()
+    plt.plot(x, y)
+    plt.show()
