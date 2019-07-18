@@ -192,7 +192,8 @@ class Painter:
             return
 
         # self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
-        self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), self.region_dab_points[self.region_countdown-1])
+        self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000),
+                               self.region_dab_points[self.region_countdown-1])
         self.region_countdown -= 1
         # time.sleep(0.1)
         
