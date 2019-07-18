@@ -35,9 +35,12 @@ def overlay(base, overlay, mask):
     img_fg = cv2.bitwise_and(overlay, overlay, mask=mask)
     return cv2.add(img_bk, img_fg)
 
-def select_start_point(mask):
-    r = np.random.random(mask.shape)
-    return np.unravel_index(np.argmax(r * mask), r.shape)
+def select_start_points(mask, num_points = 1):
+    # r = np.random.random(mask.shape)
+    # return np.unravel_index(np.argmax(r * mask), r.shape)
+    flat = mask.flatten().astype(np.double)
+    inds = np.random.choice(range(len(flat)), num_points, p=flat/np.sum(flat))
+    return [np.unravel_index(ind, mask.shape) for ind in inds]
 
 
 def get_hsv_list():
@@ -115,6 +118,7 @@ class Painter:
         self.region_countdown = 0
         self.active_region = None
         self.active_color = None
+        self.region_dab_points = None
         self.hsv_bands = get_hsv_list()
 
     def create_blank_canvas(self):
@@ -176,7 +180,8 @@ class Painter:
             if not self.get_new_region_of_interest():
                 self.painting_done = True
                 return None, None
-            self.region_countdown = np.sum(self.active_region)/200
+            self.region_countdown = int(np.sum(self.active_region)/200)
+            self.region_dab_points = select_start_points(self.active_region, self.region_countdown)
             
         return self.active_region, self.active_color
         
@@ -186,7 +191,8 @@ class Painter:
         if self.painting_done:
             return
 
-        self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
+        # self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
+        self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), self.region_dab_points[self.region_countdown-1])
         self.region_countdown -= 1
         # time.sleep(0.1)
         
