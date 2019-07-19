@@ -39,11 +39,18 @@ def overlay(base, overlay, mask):
     return cv2.add(img_bk, img_fg)
 
 def select_start_points(mask, num_points = 1):
-    # r = np.random.random(mask.shape)
-    # return np.unravel_index(np.argmax(r * mask), r.shape)
     flat = mask.flatten().astype(np.double)
     inds = np.random.choice(range(len(flat)), num_points, p=flat/np.sum(flat))
-    return [np.unravel_index(ind, mask.shape) for ind in inds]
+    return np.array(np.unravel_index(inds, mask.shape)).transpose().tolist()
+
+def select_fill_points(mask, num_points = 1):
+    flat = mask.flatten().astype(np.double)
+    inds = np.random.choice(range(len(flat)), num_points, p=flat/np.sum(flat))
+    inds = [ind for ind in range(len(flat)) if flat[ind] > 0.5]
+    inds = np.random.choice(inds, num_points)
+    return np.array(np.unravel_index(inds, mask.shape)).transpose().tolist()
+    # arr = np.array(np.where(mask > 0.5)).transpose().tolist()
+    # return arr[::len(arr)/num_points]
 
 
 def get_hsv_list(d_hue, d_value, d_sat):
@@ -170,7 +177,7 @@ class Painter:
     def filter(self, lower, upper):
         mask = cv2.inRange(self.photo_hsv, lower, upper)
         # mask = cv2.GaussianBlur(mask, (17,17), 0)
-        mask = cv2.inRange(mask, 50, 255)
+        # mask = cv2.inRange(mask, 50, 255)
 
         # print "sum: ", np.sum(mask)/255
         if np.sum(mask)/255 < 200:
@@ -208,19 +215,19 @@ class Painter:
         self.brushes = [radial_brush(100, 10000, weight=0.05)]
         self.hsv_bands = get_hsv_list(d_hue=64, d_sat=128, d_value=128)
         self.paint_fraction = 1.0/400
-        self.paint_iters = 100
+        self.paint_iters = 1
 
     def set_pass_level_2(self):
         self.brushes = [radial_brush(50, 3000, weight=0.05)]
         self.hsv_bands = get_hsv_list(d_hue=32, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/200
-        self.paint_iters = 100
+        self.paint_iters = 1
 
     def set_pass_level_3(self):
         self.brushes = [radial_brush(20, 200)]
         self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=32)
         self.paint_fraction = 1.0/50
-        self.paint_iters = 100
+        self.paint_iters = 10
 
     def set_pass_level_4(self):
         self.brushes = [radial_brush(10, 100)]
@@ -229,14 +236,14 @@ class Painter:
         self.paint_iters = 100
 
     def set_pass_level_5(self):
-        self.brushes = [radial_brush(5, 10, weight=0.05)]
+        self.brushes = [radial_brush(5, 30, weight=0.1)]
         self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=8)
         self.paint_fraction = 1.0/2
         self.paint_iters = 1000
 
     def set_pass_level_6(self):
-        self.brushes = [radial_brush(1, 3, weight=0.1)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=4)
+        self.brushes = [radial_brush(3, 10, weight=0.2)]
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=16, d_value=4)
         self.paint_fraction = 1.0/2
         self.paint_iters = 1000
         
@@ -285,7 +292,8 @@ class Painter:
                 self.painting_done = True
                 return None, None
             self.region_countdown = int(np.sum(self.active_region)*self.paint_fraction)
-            self.region_dab_points = select_start_points(self.active_region, self.region_countdown)
+            self.region_dab_points = select_fill_points(self.active_region, self.region_countdown)
+            self.region_countdown = len(self.region_dab_points)
             self.sort_points()
         return self.active_region, self.active_color
         
