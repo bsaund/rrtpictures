@@ -46,10 +46,10 @@ def select_start_points(mask, num_points = 1):
     return [np.unravel_index(ind, mask.shape) for ind in inds]
 
 
-def get_hsv_list():
-    d_hue = 4
-    d_value = 32
-    d_sat = 32
+def get_hsv_list(d_hue, d_value, d_sat):
+    # d_hue = 32
+    # d_value = 64
+    # d_sat = 64
 
     for value in range(0, 255, d_value):
         # if value < 64:
@@ -58,11 +58,11 @@ def get_hsv_list():
             for hue in range(0, 255, d_hue):
                 for saturation in range(0, 255, d_sat):
 
-                    print (hue, saturation, value)
+                    # print (hue, saturation, value)
                     yield [(hue, saturation, value),
                            (hue+d_hue, saturation + d_sat, value + d_value)]
 
-def radial_brush(radius, bristles, weight=0.2):
+def radial_brush(radius, bristles, weight=0.1):
     brush = np.ones([radius*2 + 1, radius*2+1])
 
     for theta in range(bristles):
@@ -91,6 +91,9 @@ def place_brush(brush, canvas, pos):
     return mask
 
 def paint_at(canvas, color, brush, pos):
+    """
+    More efficient that raw merge of giant canvases
+    """
     x_0 = pos[0] - brush.shape[0]/2
     x_1 = pos[0] + brush.shape[0]/2 + 1
     y_0 = pos[1] - brush.shape[1]/2
@@ -130,17 +133,21 @@ class Painter:
         self.photo= cv2.imread(photo_filepath)
         # print self.photo.shape
         self.photo = cv2.resize(self.photo, (1242, 932))
-        self.blurred_photo = cv2.GaussianBlur(self.photo, (55,55), 0)
-        self.photo_hsv = cv2.cvtColor(self.blurred_photo, cv2.COLOR_BGR2HSV)
+        # self.blurred_photo = cv2.GaussianBlur(self.photo, (55,55), 0)
+        self.photo_hsv = cv2.cvtColor(self.photo, cv2.COLOR_BGR2HSV)
         self.create_blank_canvas()
+        self.running = True
         self.painting_done = False
+        
         self.region_countdown = 0
         self.active_region = None
         self.active_color = None
         self.region_dab_points = None
-        self.hsv_bands = get_hsv_list()
-        self.running = True
-        self.brushes = [radial_brush(30 + 2*i, 2000 + 100*i) for i in range(10)]
+        self.hsv_bands = None
+        self.brushes = None
+        self.paint_iters = None
+        self.pass_level = 1
+
 
     def create_blank_canvas(self):
         self.canvas = np.zeros(self.photo.shape, np.uint8)
@@ -152,36 +159,80 @@ class Painter:
         cv2.imshow("painting", self.canvas)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             self.running=False
-            # exit()
 
     def filter(self, lower, upper):
         mask = cv2.inRange(self.photo_hsv, lower, upper)
-        mask = cv2.GaussianBlur(mask, (17,17), 0)
+        # mask = cv2.GaussianBlur(mask, (17,17), 0)
         mask = cv2.inRange(mask, 50, 255)
 
-        print "sum: ", np.sum(mask)/255
+        # print "sum: ", np.sum(mask)/255
         if np.sum(mask)/255 < 200:
             return None, None
         
-        # self.canvas = cv2.bitwise_and(self.photo, self.photo, mask=mask)
-        # self.canvas[mask] = [0,0,255]
         fill_color = np.zeros(self.photo.shape, np.uint8)
         fill_color[:,:,0] = (lower[0]+upper[0])/2
         fill_color[:,:,1] = (lower[1]+upper[1])/2
         fill_color[:,:,2] = (lower[2]+upper[2])/2
-
         fill_color = cv2.cvtColor(fill_color, cv2.COLOR_HSV2BGR)
-        
-        # self.canvas = overlay(self.canvas, self.photo, mask)
-        
-        # self.canvas = overlay(self.canvas, fill_color, mask)
 
         mask = mask.astype(np.double)/255
         return mask, fill_color
-        # mask = cv2.GaussianBlur(mask, (7, 7), 0)
+
+    def set_new_pass_level(self, level):
+        self.pass_level = level
+        print("Setting pass level", level)
+        if(level == 1):
+            self.set_pass_level_1()
+        if(level == 2):
+            self.set_pass_level_2()
+        if(level == 3):
+            self.set_pass_level_3()
+        if(level == 4):
+            self.set_pass_level_4()
+        if(level == 5):
+            self.set_pass_level_5()
+        if(level == 6):
+            self.set_pass_level_6()
+
+        return level <= 6
+        # self.brushes = [radial_brush(30 + 2*i, 2000 + 100*i) for i in range(10)]
+
+    def set_pass_level_1(self):
+        self.brushes = [radial_brush(100, 10000, weight=0.05)]
+        self.hsv_bands = get_hsv_list(d_hue=64, d_value=128, d_sat=128)
+        self.paint_fraction = 1.0/400
+        self.paint_iters = 100
+
+    def set_pass_level_2(self):
+        self.brushes = [radial_brush(50, 3000, weight=0.05)]
+        self.hsv_bands = get_hsv_list(d_hue=32, d_value=64, d_sat=64)
+        self.paint_fraction = 1.0/200
+        self.paint_iters = 100
+
+    def set_pass_level_3(self):
+        self.brushes = [radial_brush(20, 200)]
+        self.hsv_bands = get_hsv_list(d_hue=16, d_value=32, d_sat=32)
+        self.paint_fraction = 1.0/50
+        self.paint_iters = 100
+
+    def set_pass_level_4(self):
+        self.brushes = [radial_brush(10, 100)]
+        self.hsv_bands = get_hsv_list(d_hue=16, d_value=32, d_sat=32)
+        self.paint_fraction = 1.0/20
+        self.paint_iters = 100
+
+    def set_pass_level_5(self):
+        self.brushes = [radial_brush(5, 10, weight=0.05)]
+        self.hsv_bands = get_hsv_list(d_hue=16, d_value=32, d_sat=32)
+        self.paint_fraction = 1.0/2
+        self.paint_iters = 1000
+
+    def set_pass_level_6(self):
+        self.brushes = [radial_brush(1, 3, weight=0.1)]
+        self.hsv_bands = get_hsv_list(d_hue=16, d_value=2, d_sat=16)
+        self.paint_fraction = 1.0/2
+        self.paint_iters = 1000
         
-        # self.canvas = maskedWeighted(self.canvas, 0.2, fill_color, 0.8, mask)
-        # self.canvas = merge(self.canvas, fill_color, mask)
 
     def get_new_region_of_interest(self):
         self.active_region = None
@@ -189,12 +240,20 @@ class Painter:
             try:
                 lower, upper = self.hsv_bands.next()
             except:
+                if self.set_new_pass_level(self.pass_level+1):
+                    continue
                 return False
             self.active_region, self.active_color = self.filter(lower, upper)
         return True
 
 
     def sort_points(self):
+        """
+        Sorts points in an order that a human might choose to paint. 
+        """
+        self.region_dab_points.sort()
+        return
+        
         d = self.region_dab_points
         mid = self.canvas.shape
         d.sort()
@@ -218,9 +277,9 @@ class Painter:
             if not self.get_new_region_of_interest():
                 self.painting_done = True
                 return None, None
-            self.region_countdown = int(np.sum(self.active_region)/200)
+            self.region_countdown = int(np.sum(self.active_region)*self.paint_fraction)
             self.region_dab_points = select_start_points(self.active_region, self.region_countdown)
-            # self.sort_points()
+            self.sort_points()
         return self.active_region, self.active_color
         
 
@@ -229,8 +288,9 @@ class Painter:
         if self.painting_done:
             return
 
-        brush = np.random.choice(self.brushes)
-        for _ in range(10):
+        # brush = np.random.choice(self.brushes)
+        brush = self.brushes[0]
+        for _ in range(self.paint_iters):
             self.canvas = dab_fill(self.canvas, color, brush,
                                    self.region_dab_points[self.region_countdown-1])
             self.region_countdown -= 1
@@ -241,6 +301,8 @@ class Painter:
     
 
     def run(self):
+        self.set_new_pass_level(1)
+        
         while not self.painting_done and self.running:
             self.paint()
             self.display()
@@ -295,13 +357,21 @@ def main():
     fp = "Brad_with_victor.jpg"
     pic = Painter(fp)
     # pic = WIP("Brad_with_victor.jpg")
+
+    pr = cProfile.Profile()
+    pr.enable()
+
     pic.run()
+
+    pr.disable()
+    pr.print_stats(sort='time')
+
+def wip():
+    fp = "Brad_with_victor.jpg"
+    pic = WIP(fp)
+    wip.run()
     
         
 if __name__=="__main__":
-    pr = cProfile.Profile()
-    pr.enable()
     main()
-    pr.disable()
-    pr.print_stats(sort='time')
-    # cProfile.run('re.compile("main")')
+    # wip()

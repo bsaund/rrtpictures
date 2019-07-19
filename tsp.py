@@ -49,7 +49,6 @@ def tsp(points, time_limit_s=60):
     print("Solving TSP")
     assignment = routing.SolveWithParameters(search_parameters)
     print("Solved")
-
     if not assignment:
         print("Not assignment")
         
@@ -63,14 +62,11 @@ def test_points():
 
 if __name__ == "__main__":
     points = test_points()
-    # IPython.embed()
     print(points.shape)
     path = tsp(points, 10)
     print(path)
-    # IPython.embed()
     x = []
     y = []
-    # IPython.embed()
     for p in path:
         print(points[p])
         x.append(points[p,0])
