@@ -47,9 +47,9 @@ def select_start_points(mask, num_points = 1):
 
 
 def get_hsv_list():
-    d_hue = 32
-    d_value = 64
-    d_sat = 128
+    d_hue = 4
+    d_value = 32
+    d_sat = 32
 
     for value in range(0, 255, d_value):
         # if value < 64:
@@ -62,16 +62,16 @@ def get_hsv_list():
                     yield [(hue, saturation, value),
                            (hue+d_hue, saturation + d_sat, value + d_value)]
 
-def radial_brush(radius, bristles, weight=0.5):
+def radial_brush(radius, bristles, weight=0.2):
     brush = np.ones([radius*2 + 1, radius*2+1])
 
     for theta in range(bristles):
-        r = radius * np.random.random()
-        x = int(np.cos(theta)*r) + radius
-        y = int(np.sin(theta)*r) + radius
-        # IPython.embed()
-        brush[x, y] *= 0.7
-
+        r = radius * (np.random.random())
+        x = int(np.cos(theta)*r+radius)
+        y = int(np.sin(theta)*r+radius)
+        brush[x, y] *= 1-weight
+    
+    brush = np.clip(brush, (1-weight)**2, 1.0)
     return 1.0 - brush
 
 def place_brush(brush, canvas, pos):
@@ -140,7 +140,7 @@ class Painter:
         self.region_dab_points = None
         self.hsv_bands = get_hsv_list()
         self.running = True
-        self.brushes = [radial_brush(5*i, 3000) for i in range(10)]
+        self.brushes = [radial_brush(30 + 2*i, 2000 + 100*i) for i in range(10)]
 
     def create_blank_canvas(self):
         self.canvas = np.zeros(self.photo.shape, np.uint8)
@@ -155,11 +155,7 @@ class Painter:
             # exit()
 
     def filter(self, lower, upper):
-        light_orange = (1, 190, 200)
-        dark_orange = (18, 255, 255)
-
         mask = cv2.inRange(self.photo_hsv, lower, upper)
-
         mask = cv2.GaussianBlur(mask, (17,17), 0)
         mask = cv2.inRange(mask, 50, 255)
 
@@ -225,10 +221,6 @@ class Painter:
             self.region_countdown = int(np.sum(self.active_region)/200)
             self.region_dab_points = select_start_points(self.active_region, self.region_countdown)
             # self.sort_points()
-            # IPython.embed()
-            # self.order = tsp.tsp(self.region_dab_points)
-            
-            
         return self.active_region, self.active_color
         
 
@@ -237,7 +229,6 @@ class Painter:
         if self.painting_done:
             return
 
-        # self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
         brush = np.random.choice(self.brushes)
         for _ in range(10):
             self.canvas = dab_fill(self.canvas, color, brush,
@@ -250,10 +241,6 @@ class Painter:
     
 
     def run(self):
-        # while(True):
-        # for lower, upper in get_hsv_list():
-        #     self.paint(lower, upper)
-        #     self.display()
         while not self.painting_done and self.running:
             self.paint()
             self.display()
