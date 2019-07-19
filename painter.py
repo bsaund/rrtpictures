@@ -128,6 +128,13 @@ def dab_fill(canvas, color, brush, pos):
     # canvas = merge(canvas, color, dab_mask)
     return paint_at(canvas, color, brush, pos)
 
+
+def band_hsv(img, hue_band, sat_band, val_band):
+    img[:,:,0] = img[:,:,0] / hue_band * hue_band
+    img[:,:,1] = img[:,:,1] / sat_band * sat_band
+    img[:,:,2] = img[:,:,2] / val_band * val_band
+    return img
+
 class Painter:
     def __init__(self, photo_filepath):
         self.photo= cv2.imread(photo_filepath)
@@ -199,37 +206,37 @@ class Painter:
 
     def set_pass_level_1(self):
         self.brushes = [radial_brush(100, 10000, weight=0.05)]
-        self.hsv_bands = get_hsv_list(d_hue=64, d_value=128, d_sat=128)
+        self.hsv_bands = get_hsv_list(d_hue=64, d_sat=128, d_value=128)
         self.paint_fraction = 1.0/400
         self.paint_iters = 100
 
     def set_pass_level_2(self):
         self.brushes = [radial_brush(50, 3000, weight=0.05)]
-        self.hsv_bands = get_hsv_list(d_hue=32, d_value=64, d_sat=64)
+        self.hsv_bands = get_hsv_list(d_hue=32, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/200
         self.paint_iters = 100
 
     def set_pass_level_3(self):
         self.brushes = [radial_brush(20, 200)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_value=32, d_sat=32)
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=32)
         self.paint_fraction = 1.0/50
         self.paint_iters = 100
 
     def set_pass_level_4(self):
         self.brushes = [radial_brush(10, 100)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_value=32, d_sat=32)
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=16)
         self.paint_fraction = 1.0/20
         self.paint_iters = 100
 
     def set_pass_level_5(self):
         self.brushes = [radial_brush(5, 10, weight=0.05)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_value=32, d_sat=32)
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=8)
         self.paint_fraction = 1.0/2
         self.paint_iters = 1000
 
     def set_pass_level_6(self):
         self.brushes = [radial_brush(1, 3, weight=0.1)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_value=2, d_sat=16)
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=4)
         self.paint_fraction = 1.0/2
         self.paint_iters = 1000
         
@@ -316,7 +323,8 @@ class WIP:
     def __init__(self, photo_filepath):
 
         self.photo = cv2.imread(photo_filepath)
-        self.canvas = cv2.resize(self.photo, (1242, 932))
+        self.photo = cv2.resize(self.photo, (1242, 932))
+        self.canvas = self.photo
 
         # self.canvas = np.ones((1242, 932, 3))*0
         # self.canvas = np.ones((1242, 932, 3))*0
@@ -335,8 +343,12 @@ class WIP:
 
         a = mask.astype(np.double)/255 * 0.8
 
-        a = place_brush(radial_brush(50, 3000), self.canvas, (450,450))
-        self.canvas = merge(self.canvas, self.circle, a)
+        # a = place_brush(radial_brush(50, 3000, weight=0.5), self.canvas, (450,450))
+        # self.canvas = merge(self.canvas, self.circle, a)
+
+        self.photo_hsv = cv2.cvtColor(self.photo, cv2.COLOR_BGR2HSV)
+        self.photo_hsv = band_hsv(self.photo_hsv, 8, 16, 8)
+        self.canvas = cv2.cvtColor(self.photo_hsv, cv2.COLOR_HSV2BGR)
         
 
     def display(self):
@@ -369,7 +381,7 @@ def main():
 def wip():
     fp = "Brad_with_victor.jpg"
     pic = WIP(fp)
-    wip.run()
+    pic.run()
     
         
 if __name__=="__main__":
