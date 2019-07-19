@@ -45,9 +45,8 @@ def select_start_points(mask, num_points = 1):
 
 def select_fill_points(mask, num_points = 1):
     flat = mask.flatten().astype(np.double)
-    inds = np.random.choice(range(len(flat)), num_points, p=flat/np.sum(flat))
-    inds = [ind for ind in range(len(flat)) if flat[ind] > 0.5]
-    inds = np.random.choice(inds, num_points)
+    inds = np.random.choice(range(len(flat)), num_points, p=flat/np.sum(flat),
+                            replace=False)
     return np.array(np.unravel_index(inds, mask.shape)).transpose().tolist()
     # arr = np.array(np.where(mask > 0.5)).transpose().tolist()
     # return arr[::len(arr)/num_points]
@@ -64,7 +63,6 @@ def get_hsv_list(d_hue, d_value, d_sat):
         # else:
             for hue in range(0, 255, d_hue):
                 for saturation in range(0, 255, d_sat):
-
                     # print (hue, saturation, value)
                     yield [(hue, saturation, value),
                            (hue+d_hue, saturation + d_sat, value + d_value)]
@@ -111,7 +109,12 @@ def paint_at(canvas, color, brush, pos):
     if y_0 < 0 or y_1 >= canvas.shape[1]:
         return canvas
 
-    canvas[x_0:x_1, y_0:y_1,:] = merge(canvas[x_0:x_1, y_0:y_1,:], color[x_0:x_1, y_0:y_1,:], brush)
+    color_window = np.zeros((brush.shape[0], brush.shape[1], 3), np.uint8)
+    color_window[:,:,0] = color[0,0,0]
+    color_window[:,:,1] = color[0,0,1]
+    color_window[:,:,2] = color[0,0,2]
+
+    canvas[x_0:x_1, y_0:y_1,:] = merge(canvas[x_0:x_1, y_0:y_1,:], color_window, brush)
     return canvas
 
 
@@ -183,11 +186,12 @@ class Painter:
         if np.sum(mask)/255 < 200:
             return None, None
         
-        fill_color = np.zeros(self.photo.shape, np.uint8)
-        fill_color[:,:,0] = (lower[0]+upper[0])/2
-        fill_color[:,:,1] = (lower[1]+upper[1])/2
-        fill_color[:,:,2] = (lower[2]+upper[2])/2
+        fill_color = np.zeros((1,1,3), np.uint8)
+        fill_color[0,0,0] = (lower[0]+upper[0])/2
+        fill_color[0,0,1] = (lower[1]+upper[1])/2
+        fill_color[0,0,2] = (lower[2]+upper[2])/2
         fill_color = cv2.cvtColor(fill_color, cv2.COLOR_HSV2BGR)
+
 
         mask = mask.astype(np.double)/255
         return mask, fill_color
@@ -224,27 +228,29 @@ class Painter:
         self.paint_iters = 1
 
     def set_pass_level_3(self):
-        self.brushes = [radial_brush(20, 200)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=32)
-        self.paint_fraction = 1.0/50
-        self.paint_iters = 10
+        self.brushes = [radial_brush(30, 400)]
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
+        self.paint_fraction = 1.0/30
+        self.paint_iters = 1
 
     def set_pass_level_4(self):
         self.brushes = [radial_brush(10, 100)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=16)
+        # self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=16)
+        self.hsv_bands = get_hsv_list(d_hue=64, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/20
         self.paint_iters = 100
 
     def set_pass_level_5(self):
         self.brushes = [radial_brush(5, 30, weight=0.1)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=8)
+        # self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=8)
+        self.hsv_bands = get_hsv_list(d_hue=64, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/2
         self.paint_iters = 1000
 
     def set_pass_level_6(self):
-        self.brushes = [radial_brush(3, 10, weight=0.2)]
-        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=16, d_value=4)
-        self.paint_fraction = 1.0/2
+        self.brushes = [radial_brush(1, 10, weight=0.2)]
+        self.hsv_bands = get_hsv_list(d_hue=128, d_sat=128, d_value=128)
+        self.paint_fraction = 1.0/1
         self.paint_iters = 1000
         
 
@@ -265,8 +271,11 @@ class Painter:
         """
         Sorts points in an order that a human might choose to paint. 
         """
-        self.region_dab_points.sort()
+        # IPython.embed()
+        self.region_dab_points.sort(key = lambda x: [x[1]/300, x[0]])
         return
+
+        #More expensive TSP below
         
         d = self.region_dab_points
         mid = self.canvas.shape
@@ -305,14 +314,24 @@ class Painter:
 
         # brush = np.random.choice(self.brushes)
         brush = self.brushes[0]
+
+        
         for _ in range(self.paint_iters):
-            self.canvas = dab_fill(self.canvas, color, brush,
-                                   self.region_dab_points[self.region_countdown-1])
+            pos = self.region_dab_points[self.region_countdown-1]
+            
+            if(self.pass_level > 3):
+                color = self.lookup_color(color, pos)
+
+            self.canvas = dab_fill(self.canvas, color, brush, pos)
             self.region_countdown -= 1
             if self.region_countdown <=0:
                 break
         # time.sleep(0.1)
-        
+
+    def lookup_color(self, default_color, pos):
+        rgb_color = np.array([[self.photo[pos[0], pos[1], :]]])
+        # IPython.embed()
+        return rgb_color
     
 
     def run(self):
@@ -375,6 +394,7 @@ def test_points():
 
 def main():
     fp = "Brad_with_victor.jpg"
+    # fp = "BradSaund.png"
     pic = Painter(fp)
     # pic = WIP("Brad_with_victor.jpg")
 
