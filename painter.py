@@ -90,6 +90,21 @@ def place_brush(brush, canvas, pos):
         mask[x_0:x_1, y_0:y_1, i] = brush
     return mask
 
+def paint_at(canvas, color, brush, pos):
+    x_0 = pos[0] - brush.shape[0]/2
+    x_1 = pos[0] + brush.shape[0]/2 + 1
+    y_0 = pos[1] - brush.shape[1]/2
+    y_1 = pos[1] + brush.shape[1]/2 + 1
+
+    if x_0 < 0 or x_1 >= canvas.shape[0]:
+        return canvas
+    if y_0 < 0 or y_1 >= canvas.shape[1]:
+        return canvas
+
+    canvas[x_0:x_1, y_0:y_1,:] = merge(canvas[x_0:x_1, y_0:y_1,:], color[x_0:x_1, y_0:y_1,:], brush)
+    return canvas
+
+
 
 def dab_fill(canvas, color, brush, pos):
     """
@@ -104,11 +119,11 @@ def dab_fill(canvas, color, brush, pos):
     # IPython.embed()
     # for _ in range(int(num_dabs)):
     #     pos = select_start_point(mask)
-    dab_mask = place_brush(brush, canvas, pos)
-    if dab_mask is None:
-        return canvas
-    canvas = merge(canvas, color, dab_mask)
-    return canvas
+    # dab_mask = place_brush(brush, canvas, pos)
+    # if dab_mask is None:
+    #     return canvas
+    # canvas = merge(canvas, color, dab_mask)
+    return paint_at(canvas, color, brush, pos)
 
 class Painter:
     def __init__(self, photo_filepath):
@@ -124,6 +139,8 @@ class Painter:
         self.active_color = None
         self.region_dab_points = None
         self.hsv_bands = get_hsv_list()
+        self.running = True
+        self.brushes = [radial_brush(5*i, 3000) for i in range(10)]
 
     def create_blank_canvas(self):
         self.canvas = np.zeros(self.photo.shape, np.uint8)
@@ -134,7 +151,8 @@ class Painter:
     def display(self):
         cv2.imshow("painting", self.canvas)
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            exit()
+            self.running=False
+            # exit()
 
     def filter(self, lower, upper):
         light_orange = (1, 190, 200)
@@ -206,7 +224,7 @@ class Painter:
                 return None, None
             self.region_countdown = int(np.sum(self.active_region)/200)
             self.region_dab_points = select_start_points(self.active_region, self.region_countdown)
-            self.sort_points()
+            # self.sort_points()
             # IPython.embed()
             # self.order = tsp.tsp(self.region_dab_points)
             
@@ -220,8 +238,9 @@ class Painter:
             return
 
         # self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000), select_start_point(region))
+        brush = np.random.choice(self.brushes)
         for _ in range(10):
-            self.canvas = dab_fill(self.canvas, color, radial_brush(50, 3000),
+            self.canvas = dab_fill(self.canvas, color, brush,
                                    self.region_dab_points[self.region_countdown-1])
             self.region_countdown -= 1
             if self.region_countdown <=0:
@@ -235,13 +254,13 @@ class Painter:
         # for lower, upper in get_hsv_list():
         #     self.paint(lower, upper)
         #     self.display()
-        while not self.painting_done:
+        while not self.painting_done and self.running:
             self.paint()
             self.display()
 
 
         print "Painting finished"
-        while(True):
+        while(self.running):
             self.display()
 
 class WIP:
@@ -293,5 +312,9 @@ def main():
     
         
 if __name__=="__main__":
+    pr = cProfile.Profile()
+    pr.enable()
     main()
+    pr.disable()
+    pr.print_stats(sort='time')
     # cProfile.run('re.compile("main")')
