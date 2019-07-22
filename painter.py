@@ -234,24 +234,24 @@ class Painter:
         self.paint_iters = 1
 
     def set_pass_level_4(self):
-        self.brushes = [radial_brush(10, 100)]
+        self.brushes = [radial_brush(10, 100, 0.05)]
         # self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=16)
-        self.hsv_bands = get_hsv_list(d_hue=64, d_sat=64, d_value=64)
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/20
-        self.paint_iters = 100
+        self.paint_iters = 10
 
     def set_pass_level_5(self):
-        self.brushes = [radial_brush(5, 30, weight=0.1)]
+        self.brushes = [radial_brush(5, 30, weight=0.05)]
         # self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=8)
-        self.hsv_bands = get_hsv_list(d_hue=64, d_sat=64, d_value=64)
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/2
-        self.paint_iters = 1000
+        self.paint_iters = 100
 
     def set_pass_level_6(self):
         self.brushes = [radial_brush(1, 10, weight=0.2)]
-        self.hsv_bands = get_hsv_list(d_hue=128, d_sat=128, d_value=128)
-        self.paint_fraction = 1.0/1
-        self.paint_iters = 1000
+        self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
+        self.paint_fraction = 1.0/2
+        self.paint_iters = 100
         
 
     def get_new_region_of_interest(self):
