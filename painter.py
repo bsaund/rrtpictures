@@ -8,41 +8,14 @@ import tsp
 import cProfile
 import re
 import os
+import painting_utils as pu
+from painting_utils import radial_brush, merge, paint_at
 
 
-def maskedWeighted(bg, alpha, fg, beta, mask):
-    """
-    Performs a weighted add only in the mask region. Outside of the mask, just uses bg
-    """
-    mask_inv = cv2.bitwise_not(mask)
-    img_bg = cv2.bitwise_and(bg, bg, mask=mask_inv)
-    img_mix = cv2.addWeighted(bg, alpha, fg, beta, 0)
-    img_fg = cv2.bitwise_and(img_mix, img_mix, mask=mask)
-    return cv2.add(img_bg, img_fg)
 
 
-def merge(bg, fg, alpha_mask):
-    """
-    alpha_mask must be a matrix with the same size (at least in 2D) of bg and fg.
-    alpha_mask should range from 0.0 to 1.0
-    """
-    if len(alpha_mask.shape) == 2:
-        alpha_mask = np.repeat(alpha_mask[:,:,np.newaxis], 3, axis=2)
-    return (fg*alpha_mask + bg*(1-alpha_mask)).astype(np.uint8)
 
-def overlay(base, overlay, mask):
-    """
-    Returns an image of overlay where mask, and background where not mask
-    """
-    mask_inv = cv2.bitwise_not(mask)
-    img_bk = cv2.bitwise_and(base, base, mask=mask_inv)
-    img_fg = cv2.bitwise_and(overlay, overlay, mask=mask)
-    return cv2.add(img_bk, img_fg)
 
-def select_start_points(mask, num_points = 1):
-    flat = mask.flatten().astype(np.double)
-    inds = np.random.choice(range(len(flat)), num_points, p=flat/np.sum(flat))
-    return np.array(np.unravel_index(inds, mask.shape)).transpose().tolist()
 
 def select_fill_points(mask, num_points = 1):
     flat = mask.flatten().astype(np.double)
@@ -54,90 +27,17 @@ def select_fill_points(mask, num_points = 1):
 
 
 def get_hsv_list(d_hue, d_value, d_sat):
-    # d_hue = 32
-    # d_value = 64
-    # d_sat = 64
-
     for value in range(0, 255, d_value):
-        # if value < 64:
-        #     yield [(0, 0, value), (255, 255, value)]
-        # else:
-            for hue in range(0, 255, d_hue):
-                for saturation in range(0, 255, d_sat):
-                    # print (hue, saturation, value)
-                    yield [(hue, saturation, value),
-                           (hue+d_hue, saturation + d_sat, value + d_value)]
-
-def radial_brush(radius, bristles, weight=0.1):
-    brush = np.ones([radius*2 + 1, radius*2+1])
-
-    for theta in range(bristles):
-        r = radius * (np.random.random())
-        x = int(np.cos(theta)*r+radius)
-        y = int(np.sin(theta)*r+radius)
-        brush[x, y] *= 1-weight
-    
-    brush = np.clip(brush, (1-weight)**2, 1.0)
-    return 1.0 - brush
-
-def place_brush(brush, canvas, pos):
-    mask = np.zeros(canvas.shape, np.double)
-    x_0 = pos[0] - brush.shape[0]/2
-    x_1 = pos[0] + brush.shape[0]/2 + 1
-    y_0 = pos[1] - brush.shape[1]/2
-    y_1 = pos[1] + brush.shape[1]/2 + 1
-
-    if x_0 < 0 or x_1 >= canvas.shape[0]:
-        return None
-    if y_0 < 0 or y_1 >= canvas.shape[1]:
-        return None
-
-    for i in range(canvas.shape[2]):
-        mask[x_0:x_1, y_0:y_1, i] = brush
-    return mask
-
-def paint_at(canvas, color, brush, pos):
-    """
-    More efficient that raw merge of giant canvases
-    """
-    x_0 = pos[0] - brush.shape[0]/2
-    x_1 = pos[0] + brush.shape[0]/2 + 1
-    y_0 = pos[1] - brush.shape[1]/2
-    y_1 = pos[1] + brush.shape[1]/2 + 1
-
-    if x_0 < 0 or x_1 >= canvas.shape[0]:
-        return canvas
-    if y_0 < 0 or y_1 >= canvas.shape[1]:
-        return canvas
-
-    color_window = np.zeros((brush.shape[0], brush.shape[1], 3), np.uint8)
-    color_window[:,:,0] = color[0,0,0]
-    color_window[:,:,1] = color[0,0,1]
-    color_window[:,:,2] = color[0,0,2]
-
-    canvas[x_0:x_1, y_0:y_1,:] = merge(canvas[x_0:x_1, y_0:y_1,:], color_window, brush)
-    return canvas
+        for hue in range(0, 255, d_hue):
+            for saturation in range(0, 255, d_sat):
+                # print (hue, saturation, value)
+                yield [(hue, saturation, value),
+                       (hue+d_hue, saturation + d_sat, value + d_value)]
 
 
 
-def dab_fill(canvas, color, brush, pos):
-    """
-    canvas is the standard canvas
-    color is a canvas-sized array of the paint color
-    brush is the brush used
-    mask is an array of 0s or 1s
-    """
-    # num_dabs = np.sum(mask)/200
-    num_dabs = 1
-    
-    # IPython.embed()
-    # for _ in range(int(num_dabs)):
-    #     pos = select_start_point(mask)
-    # dab_mask = place_brush(brush, canvas, pos)
-    # if dab_mask is None:
-    #     return canvas
-    # canvas = merge(canvas, color, dab_mask)
-    return paint_at(canvas, color, brush, pos)
+
+
 
 
 def band_hsv(img, hue_band, sat_band, val_band):
@@ -177,10 +77,6 @@ class Painter:
         self.canvas[:,:,1] = 245
         self.canvas[:,:,2] = 245
 
-    def display(self):
-        cv2.imshow("painting", self.canvas)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            self.running=False
 
     def filter(self, lower, upper):
         mask = cv2.inRange(self.photo_hsv, lower, upper)
@@ -329,7 +225,7 @@ class Painter:
             if(self.pass_level > 3):
                 color = self.lookup_color(color, pos)
 
-            self.canvas = dab_fill(self.canvas, color, brush, pos)
+            self.canvas = paint_at(self.canvas, color, brush, pos)
             self.region_countdown -= 1
         # time.sleep(0.1)
 
@@ -358,7 +254,7 @@ class Painter:
             self.paint()
 
             if display:
-                self.display()
+                self.running = pu.display(self.canvas)
 
             if record:
                 self.save_frame()
@@ -369,7 +265,7 @@ class Painter:
             
         print "Painting finished"
         while(display and self.running):
-            self.display(self.canvas)
+            self.running = pu.display(self.canvas)
 
 
 def main():
