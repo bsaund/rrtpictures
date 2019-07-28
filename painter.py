@@ -7,6 +7,7 @@ import IPython
 import tsp
 import cProfile
 import re
+import os
 
 
 def maskedWeighted(bg, alpha, fg, beta, mask):
@@ -145,8 +146,11 @@ def band_hsv(img, hue_band, sat_band, val_band):
     img[:,:,2] = img[:,:,2] / val_band * val_band
     return img
 
+
+
 class Painter:
     def __init__(self, photo_filepath):
+        self.photo_filename = photo_filepath
         self.photo= cv2.imread(photo_filepath)
         # print self.photo.shape
         self.photo = cv2.resize(self.photo, (1242, 932))
@@ -164,6 +168,7 @@ class Painter:
         self.brushes = None
         self.paint_iters = None
         self.pass_level = 1
+
 
 
     def create_blank_canvas(self):
@@ -271,7 +276,6 @@ class Painter:
         """
         Sorts points in an order that a human might choose to paint. 
         """
-        # IPython.embed()
         self.region_dab_points.sort(key = lambda x: [x[1]/300, x[0]])
         return
 
@@ -330,21 +334,45 @@ class Painter:
 
     def lookup_color(self, default_color, pos):
         rgb_color = np.array([[self.photo[pos[0], pos[1], :]]])
-        # IPython.embed()
         return rgb_color
     
+    def setup_video_recorder(self):
+        outfile = os.getcwd() + "/videos/" + os.path.splitext(self.photo_filename)[0] + ".mp4"
+        self.out = cv2.VideoWriter(outfile,
+                                   0x00000021, 30, (1242,932))
 
-    def run(self):
-        self.set_new_pass_level(1)
+    def save_frame(self):
+        self.out.write(self.canvas)
+
+    def finish_video(self):
+        self.out.release()
+
+    def run(self, display=True, record=False):
+        if record:
+            self.setup_video_recorder()
         
+        self.set_new_pass_level(1)
+
         while not self.painting_done and self.running:
             self.paint()
-            self.display()
+
+            if display:
+                self.display()
+
+            if record:
+                self.save_frame()
 
 
+        if record:
+            self.finish_video()
+            
         print "Painting finished"
-        while(self.running):
+        while(display and self.running):
             self.display()
+
+
+
+    
 
 class WIP:
     def __init__(self, photo_filepath):
@@ -401,10 +429,12 @@ def main():
     pr = cProfile.Profile()
     pr.enable()
 
-    pic.run()
+    pic.run(display=True, record=True)
 
     pr.disable()
     pr.print_stats(sort='time')
+
+    
 
 def wip():
     fp = "Brad_with_victor.jpg"
