@@ -86,4 +86,15 @@ def display(canvas, name="painting"):
 def display_until(canvas, name="tmp"):
     while display(canvas, name):
         pass
-    
+
+
+def make_slic(img, region_size=int(10), ruler=10.0):
+    sp = cv2.ximgproc.createSuperpixelSLIC(img, region_size=region_size, ruler=ruler)
+    for _ in range(5):
+        sp.iterate()
+    return sp
+
+
+def disp_slic(img, region_size=10, ruler=10.0):
+    sp = make_slic(img, region_size, ruler)
+    display_until(sp.getLabelContourMask())
