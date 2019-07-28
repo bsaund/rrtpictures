@@ -151,7 +151,7 @@ def band_hsv(img, hue_band, sat_band, val_band):
 class Painter:
     def __init__(self, photo_filepath):
         self.photo_filename = photo_filepath
-        self.photo= cv2.imread(photo_filepath)
+        self.photo= cv2.imread("pictures/" + photo_filepath)
         # print self.photo.shape
         self.photo = cv2.resize(self.photo, (1242, 932))
         # self.blurred_photo = cv2.GaussianBlur(self.photo, (55,55), 0)
@@ -321,15 +321,16 @@ class Painter:
 
         
         for _ in range(self.paint_iters):
+            if self.region_countdown <=0:
+                break
+
             pos = self.region_dab_points[self.region_countdown-1]
-            
+                
             if(self.pass_level > 3):
                 color = self.lookup_color(color, pos)
 
             self.canvas = dab_fill(self.canvas, color, brush, pos)
             self.region_countdown -= 1
-            if self.region_countdown <=0:
-                break
         # time.sleep(0.1)
 
     def lookup_color(self, default_color, pos):
@@ -368,59 +369,11 @@ class Painter:
             
         print "Painting finished"
         while(display and self.running):
-            self.display()
+            self.display(self.canvas)
 
-
-
-    
-
-class WIP:
-    def __init__(self, photo_filepath):
-
-        self.photo = cv2.imread(photo_filepath)
-        self.photo = cv2.resize(self.photo, (1242, 932))
-        self.canvas = self.photo
-
-        # self.canvas = np.ones((1242, 932, 3))*0
-        # self.canvas = np.ones((1242, 932, 3))*0
-        # self.canvas[:,:,0] = 255
-
-        self.circle = np.ones(self.canvas.shape, np.uint8)*255
-        cv2.circle(self.circle, (500, 500), 150, (0,0,255), -1)
-        # cv2.circle(self.canvas, (500, 500), 50, (0,0,255), -1)
-
-        mask = cv2.inRange(self.circle, (0,0,1), (1, 1, 255))
-        # IPython.embed()
-        # self.canvas = overlay(self.canvas, self.circle, mask)
-        # self.canvas = cv2.addWeighted(self.canvas, 0.5, self.circle, 0.5, 0)
-        # self.canvas = maskedWeighted(self.canvas, 0.5, self.circle, 0.5, mask)
-
-
-        a = mask.astype(np.double)/255 * 0.8
-
-        # a = place_brush(radial_brush(50, 3000, weight=0.5), self.canvas, (450,450))
-        # self.canvas = merge(self.canvas, self.circle, a)
-
-        self.photo_hsv = cv2.cvtColor(self.photo, cv2.COLOR_BGR2HSV)
-        self.photo_hsv = band_hsv(self.photo_hsv, 8, 16, 8)
-        self.canvas = cv2.cvtColor(self.photo_hsv, cv2.COLOR_HSV2BGR)
-        
-
-    def display(self):
-        cv2.imshow("dummy", self.canvas)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            exit()
-
-    def run(self):
-        while True:
-            self.display()
-
-def test_points():
-    points = [[100*np.sin(i), 100*np.cos(i)] for i in np.arange(0, np.pi*2, 0.1)]
-    np.random.shuffle(points)
-    return np.array(points)
 
 def main():
+    # fp = "goose.jpg"
     fp = "Brad_with_victor.jpg"
     # fp = "BradSaund.png"
     pic = Painter(fp)
