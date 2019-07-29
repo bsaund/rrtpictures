@@ -48,6 +48,8 @@ def band_hsv(img, hue_band, sat_band, val_band):
 
 
 
+
+
 class Painter:
     def __init__(self, photo_filepath):
         self.photo_filename = photo_filepath
@@ -93,7 +95,7 @@ class Painter:
         fill_color[0,0,2] = (lower[2]+upper[2])/2
         fill_color = cv2.cvtColor(fill_color, cv2.COLOR_HSV2BGR)
 
-
+        # print("(%f, %f, %f)"%(lower[0], lower[1], lower[2]))
         mask = mask.astype(np.double)/255
         return mask, fill_color
 
@@ -153,7 +155,6 @@ class Painter:
         self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/2
         self.paint_iters = 100
-        
 
     def get_new_region_of_interest(self):
         self.active_region = None
@@ -278,7 +279,7 @@ def main():
     pr = cProfile.Profile()
     pr.enable()
 
-    pic.run(display=True, record=True)
+    pic.run(display=True, record=False)
 
     pr.disable()
     pr.print_stats(sort='time')

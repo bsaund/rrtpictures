@@ -97,4 +97,13 @@ def make_slic(img, region_size=int(10), ruler=10.0):
 
 def disp_slic(img, region_size=10, ruler=10.0):
     sp = make_slic(img, region_size, ruler)
-    display_until(sp.getLabelContourMask())
+    con = sp.getLabelContourMask()
+
+    di = cv2.dilate(con, np.ones((3,3), np.uint8), iterations=1)
+
+    white = np.ones(img.shape, np.uint8)*255
+
+    mix = overlay(img, white, di)
+    mix = cv2.bitwise_and(mix, mix, mask=cv2.bitwise_not(con))
+    
+    display_until(mix)
