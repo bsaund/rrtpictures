@@ -35,6 +35,7 @@ def overlay(base, overlay, mask):
     mask_inv = cv2.bitwise_not(mask)
     img_bk = cv2.bitwise_and(base, base, mask=mask_inv)
     img_fg = cv2.bitwise_and(overlay, overlay, mask=mask)
+    # IPython.embed()
     return cv2.add(img_bk, img_fg)
 
 

@@ -58,6 +58,7 @@ class Painter:
         self.photo = cv2.resize(self.photo, (1242, 932))
         # self.blurred_photo = cv2.GaussianBlur(self.photo, (55,55), 0)
         self.photo_hsv = cv2.cvtColor(self.photo, cv2.COLOR_BGR2HSV)
+        self.prepare_photos()
         self.create_blank_canvas()
         self.running = True
         self.painting_done = False
@@ -71,6 +72,12 @@ class Painter:
         self.paint_iters = None
         self.pass_level = 1
 
+        
+    def prepare_photos(self):
+        self.sp_1 = pu.make_lsc(cv2.GaussianBlur(self.photo, (31, 31), 0), region_size=500, ratio=0.1)
+        self.sp_2 = pu.make_lsc(cv2.GaussianBlur(self.photo, (11, 11), 0), region_size=100, ratio=0.1)
+        self.sp_1_lab = self.sp_1.getLabels()
+        self.sp_2_lab = self.sp_2.getLabels()
 
 
     def create_blank_canvas(self):
@@ -169,11 +176,20 @@ class Painter:
         return True
 
 
+    def sort_key(self, k):
+        return (self.sp_1_lab[k[0], k[1]],
+                self.sp_2_lab[k[0], k[1]],
+                k[1])
+
     def sort_points(self):
         """
         Sorts points in an order that a human might choose to paint. 
         """
-        self.region_dab_points.sort(key = lambda x: [x[1]/300, x[0]])
+        # def sort_key(k):
+        #     IPython.embed()
+        
+        # self.region_dab_points.sort(key = lambda x: [x[1]/300, x[0]])
+        self.region_dab_points.sort(key = self.sort_key)
         return
 
         #More expensive TSP below
@@ -246,6 +262,7 @@ class Painter:
         self.out.release()
 
     def run(self, display=True, record=False):
+        IPython.embed()
         if record:
             self.setup_video_recorder()
         
