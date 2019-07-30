@@ -9,7 +9,7 @@ import cProfile
 import re
 import os
 import painting_utils as pu
-from painting_utils import radial_brush, merge, paint_at
+from painting_utils import radial_brush, merge, paint_at, pencil_brush
 
 
 
@@ -151,6 +151,7 @@ class Painter:
         self.paint_iters = 10
 
     def set_pass_level_5(self):
+        # self.brushes = [pencil_brush(11)]
         self.brushes = [radial_brush(5, 30, weight=0.05)]
         # self.hsv_bands = get_hsv_list(d_hue=16, d_sat=32, d_value=8)
         self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
@@ -158,6 +159,7 @@ class Painter:
         self.paint_iters = 100
 
     def set_pass_level_6(self):
+        # self.brushes = [pencil_brush(5)]
         self.brushes = [radial_brush(1, 10, weight=0.2)]
         self.hsv_bands = get_hsv_list(d_hue=16, d_sat=64, d_value=64)
         self.paint_fraction = 1.0/2
@@ -185,9 +187,6 @@ class Painter:
         """
         Sorts points in an order that a human might choose to paint. 
         """
-        # def sort_key(k):
-        #     IPython.embed()
-        
         # self.region_dab_points.sort(key = lambda x: [x[1]/300, x[0]])
         self.region_dab_points.sort(key = self.sort_key)
         return
@@ -198,7 +197,6 @@ class Painter:
         mid = self.canvas.shape
         d.sort()
         # d.sort(key = lambda p: (p[0] - mid[0]/2)**2 + (p[1] - mid[1]/2)**2)
-        # IPython.embed()
         size = 50
         chunks = [d[x:x+size] for x in range(0, len(d), size)]
 
@@ -209,7 +207,6 @@ class Painter:
             path = tsp.tsp(np.array(chunk))
             # path = path[1:]
             sorted_points += [chunk[p] for p in path]
-            # IPython.embed()
         self.region_dab_points = sorted_points
 
     def get_region_of_interest(self):
@@ -262,7 +259,6 @@ class Painter:
         self.out.release()
 
     def run(self, display=True, record=False):
-        IPython.embed()
         if record:
             self.setup_video_recorder()
         
@@ -296,7 +292,7 @@ def main():
     pr = cProfile.Profile()
     pr.enable()
 
-    pic.run(display=True, record=False)
+    pic.run(display=True, record=True)
 
     pr.disable()
     pr.print_stats(sort='time')

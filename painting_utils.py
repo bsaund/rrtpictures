@@ -54,6 +54,9 @@ def radial_brush(radius, bristles, weight=0.1):
     brush = np.clip(brush, (1-weight)**2, 1.0)
     return 1.0 - brush
 
+def pencil_brush(length, weight=0.2):
+    return np.diag([1]*length)*weight
+
 
 def paint_at(canvas, color, brush, pos):
     """
